@@ -12,11 +12,9 @@ import { ApiError, apiErrorFromResponse, readJson } from "@/lib/api-error";
 
 export { ApiError } from "@/lib/api-error";
 export type { FieldErrors } from "@/lib/api-error";
+import { toQueryString, type Query } from "@/lib/query-string";
 
 const BASE = "/api";
-
-type Primitive = string | number | boolean | null | undefined;
-type Query = Record<string, Primitive | Primitive[]>;
 
 type RequestOptions = {
   query?: Query;
@@ -38,23 +36,7 @@ export function setUnauthenticatedHandler(handler: (() => void) | null) {
 }
 
 function buildUrl(path: string, query?: Query): string {
-  const params = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(query ?? {})) {
-    const isList = Array.isArray(value);
-
-    for (const item of isList ? value : [value]) {
-      if (item === undefined || item === null || item === "") continue;
-
-      // Laravel's boolean rule accepts 1 and 0, but not the text "true" or "false".
-      const text = typeof item === "boolean" ? (item ? "1" : "0") : String(item);
-      params.append(isList ? `${key}[]` : key, text);
-    }
-  }
-
-  const queryString = params.toString();
-
-  return `${BASE}${path}${queryString ? `?${queryString}` : ""}`;
+  return `${BASE}${path}${toQueryString(query)}`;
 }
 
 async function request<T>(

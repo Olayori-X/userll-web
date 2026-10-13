@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { register as registerAccount } from "@/lib/api/auth";
 import { applyApiErrors } from "@/lib/form-errors";
+import { isStrongPassword, PASSWORD_RULE } from "@/lib/password-rules";
 import { useSession } from "@/components/providers/session-provider";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -19,10 +20,6 @@ import { PasswordInput } from "@/components/ui/password-input";
 // These mirror the API's own rules, so people see problems before anything is sent. The API still checks again.
 const PHONE_PATTERN = /^\+?[0-9]{7,15}$/;
 const normalizePhone = (value: string) => value.replace(/[\s\-()]/g, "");
-const isStrongPassword = (value: string) =>
-  value.length >= 8 && /\p{Ll}/u.test(value) && /\p{Lu}/u.test(value) && /\p{N}/u.test(value);
-
-const PASSWORD_RULE = "Use at least 8 characters, with upper and lower case letters and a number.";
 
 const registerSchema = z
   .object({
