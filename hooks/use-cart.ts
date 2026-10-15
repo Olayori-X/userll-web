@@ -5,7 +5,7 @@ import { useSession } from "@/components/providers/session-provider";
 import { addToCart, clearCart, getCart, removeCartItem, setCartQuantity } from "@/lib/api/cart";
 import type { Cart } from "@/lib/types/cart";
 
-const CART_KEY = ["cart"] as const;
+export const CART_KEY = ["cart"] as const;
 
 /**
  * The buyer's cart. It has no data while loading, and none at all when nobody can have a cart yet
