@@ -9,6 +9,8 @@ import { AccountMenu } from "@/components/layout/account-menu";
 import { useSession } from "@/components/providers/session-provider";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useCartCount } from "@/hooks/use-cart";
+
 
 /**
  * The search box. It goes to /listings?q=..., and shows what was searched while you are on that page.
@@ -54,6 +56,7 @@ const SEARCH_LAYOUT = "order-last w-full md:order-none md:max-w-md md:flex-1";
 
 export function SiteHeader() {
   const { user, status } = useSession();
+  const cartCount = useCartCount();
 
   // Sellers do not need "Become a seller". Wait until we know who is looking, so the link does not flash.
   const showSellLink = status !== "loading" && !user?.is_seller;
@@ -81,9 +84,21 @@ export function SiteHeader() {
         </Suspense>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <Link href="/cart" aria-label="Cart" className={buttonVariants({ variant: "ghost", size: "icon" })}>
-            <ShoppingCart aria-hidden />
-          </Link>
+            <Link
+                href="/cart"
+                aria-label={cartCount > 0 ? `Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}` : "Cart"}
+                className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")}
+                >
+                <ShoppingCart aria-hidden />
+                {cartCount > 0 && (
+                    <span
+                    aria-hidden
+                    className="absolute -top-0.5 -right-0.5 flex min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] leading-5 font-bold text-primary-foreground"
+                    >
+                    {cartCount > 99 ? "99+" : cartCount}
+                    </span>
+                )}
+            </Link>
           <AccountMenu />
         </div>
       </div>
