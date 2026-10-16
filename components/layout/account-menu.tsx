@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   MailWarning,
+  MapPin,
   MessageCircle,
   Package,
   Shield,
@@ -92,6 +93,10 @@ export function AccountMenu() {
         <DropdownMenuItem render={<Link href="/notifications" />}>
           <Bell aria-hidden />
           Notifications
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/account/addresses" />}>
+          <MapPin aria-hidden />
+          Addresses
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
