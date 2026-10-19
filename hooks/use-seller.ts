@@ -25,7 +25,7 @@ const PAYOUT_ACCOUNT_KEY = [...SELLER_KEY, "payout-account"] as const;
 const BANKS_KEY = ["banks"] as const;
 
 /** Only asked for someone who really is a seller (a shop exists, email verified). The API refuses everyone else. */
-function useIsSeller() {
+export function useIsSeller() {
   const { user } = useSession();
 
   return Boolean(user?.email_verified && user.is_seller);

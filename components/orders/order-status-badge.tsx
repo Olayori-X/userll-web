@@ -1,4 +1,4 @@
-import { ORDER_STATUS, type StatusTone } from "@/lib/order-status";
+import { statusInfo, type OrderViewer, type StatusTone } from "@/lib/order-status";
 import type { OrderStatus } from "@/lib/types/checkout";
 import { cn } from "@/lib/utils";
 
@@ -13,13 +13,15 @@ const TONES: Record<StatusTone, string> = {
 
 type OrderStatusBadgeProps = {
   status: OrderStatus;
+  /** Whose words to use. A "paid" order is "Paid" to a buyer and "To ship" to the seller. */
+  viewer?: OrderViewer;
   className?: string;
 };
 
-/** The small coloured pill with an order's status: "Paid", "Shipped", "Problem reported". */
-export function OrderStatusBadge({ status, className }: OrderStatusBadgeProps) {
+/** The small coloured pill with an order's status. */
+export function OrderStatusBadge({ status, viewer = "buyer", className }: OrderStatusBadgeProps) {
   // A status the API adds one day, which this screen has not heard of, still shows as plain words.
-  const info = ORDER_STATUS[status] ?? { label: String(status).replace(/_/g, " "), tone: "neutral" as const };
+  const info = statusInfo(status, viewer) ?? { label: String(status).replace(/_/g, " "), tone: "neutral" as const };
 
   return (
     <span
