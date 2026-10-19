@@ -17,6 +17,7 @@ import { OrderReview } from "@/components/orders/order-review";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { MessageButton } from "@/components/messages/message-button";
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -228,6 +229,7 @@ export function OrderDetail({ orderNumber }: { orderNumber: string }) {
 
         <div className="grid gap-6">
           {order.seller && <SellerCard seller={order.seller} />}
+          <MessageButton about={{ order: order.order_number }}>Message the seller about this order</MessageButton>
           <DeliveryCard order={order} />
           <DatesCard order={order} />
         </div>

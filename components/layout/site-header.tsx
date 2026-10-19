@@ -3,14 +3,15 @@
 import { Suspense, type FormEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, ShoppingCart } from "lucide-react";
+import { Bell, MessageCircle, Search, ShoppingCart } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { useSession } from "@/components/providers/session-provider";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { IconLink } from "@/components/layout/icon-link";
 import { useCartCount } from "@/hooks/use-cart";
-
+import { useUnreadCount } from "@/hooks/use-chat";
+import { useUnreadNotificationCount } from "@/hooks/use-notifications";
+import { cn } from "@/lib/utils";
 
 /**
  * The search box. It goes to /listings?q=..., and shows what was searched while you are on that page.
@@ -57,6 +58,8 @@ const SEARCH_LAYOUT = "order-last w-full md:order-none md:max-w-md md:flex-1";
 export function SiteHeader() {
   const { user, status } = useSession();
   const cartCount = useCartCount();
+  const unreadMessages = useUnreadCount();
+  const unreadNotifications = useUnreadNotificationCount();
 
   // Sellers do not need "Become a seller". Wait until we know who is looking, so the link does not flash.
   const showSellLink = status !== "loading" && !user?.is_seller;
@@ -84,21 +87,39 @@ export function SiteHeader() {
         </Suspense>
 
         <div className="ml-auto flex items-center gap-1.5">
-            <Link
-                href="/cart"
-                aria-label={cartCount > 0 ? `Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}` : "Cart"}
-                className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")}
+          {/* Only for people with an account: a visitor has no messages to see. */}
+          {/* Only for people with an account: a visitor has nothing to be notified about. */}
+          {user && (
+            <>
+              {/* Hidden on narrow phones to save room: Notifications is also in the account menu. */}
+              <div className="hidden sm:contents">
+                <IconLink
+                  href="/notifications"
+                  count={unreadNotifications}
+                  label={(count) => (count > 0 ? `Notifications, ${count} unread` : "Notifications")}
                 >
-                <ShoppingCart aria-hidden />
-                {cartCount > 0 && (
-                    <span
-                    aria-hidden
-                    className="absolute -top-0.5 -right-0.5 flex min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] leading-5 font-bold text-primary-foreground"
-                    >
-                    {cartCount > 99 ? "99+" : cartCount}
-                    </span>
-                )}
-            </Link>
+                  <Bell aria-hidden />
+                </IconLink>
+              </div>
+
+              <IconLink
+                href="/messages"
+                count={unreadMessages}
+                label={(count) => (count > 0 ? `Messages, ${count} unread` : "Messages")}
+              >
+                <MessageCircle aria-hidden />
+              </IconLink>
+            </>
+          )}
+
+          <IconLink
+            href="/cart"
+            count={cartCount}
+            label={(count) => (count > 0 ? `Cart, ${count} ${count === 1 ? "item" : "items"}` : "Cart")}
+          >
+            <ShoppingCart aria-hidden />
+          </IconLink>
+
           <AccountMenu />
         </div>
       </div>

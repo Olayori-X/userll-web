@@ -6,6 +6,7 @@ import { LockKeyhole, MailWarning } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
 import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /** Grey placeholder blocks while a page finds out who is looking, or loads its data. */
 export function PageSkeleton({ label = "Loading" }: { label?: string }) {
@@ -35,8 +36,14 @@ type RequireVerifiedUserProps = {
   next: string;
   /** The heading for a visitor who is not logged in: "Log in to check out". */
   loginTitle: string;
-  loginText?: string;
+  loginText?: ReactNode;
   verifyText?: string;
+  /**
+   * Classes for a box around the screens shown INSTEAD of the page (loading, logged out, unverified, error).
+   * For pages with no header of their own, so those screens are not stuck to the top: "px-4 py-16".
+   * The page itself, once it can show, is never wrapped.
+   */
+  className?: string;
   children: ReactNode;
 };
 
@@ -52,35 +59,38 @@ export function RequireVerifiedUser({
   loginTitle,
   loginText = "Your account keeps everything in one place.",
   verifyText = "Confirm your email address to continue.",
+  className,
   children,
 }: RequireVerifiedUserProps) {
   const { user, status } = useSession();
 
-  if (status === "loading") return <PageSkeleton />;
+  const instead = (content: ReactNode) => (className ? <div className={cn(className)}>{content}</div> : content);
+
+  if (status === "loading") return instead(<PageSkeleton />);
 
   if (status === "error") {
-    return <Alert variant="error">We couldn&apos;t load your account. Check your connection and refresh the page.</Alert>;
+    return instead(<Alert variant="error">We couldn&apos;t load your account. Check your connection and refresh the page.</Alert>);
   }
 
   if (!user) {
-    return (
+    return instead(
       <PageNotice icon={<LockKeyhole className="size-7" aria-hidden />} title={loginTitle}>
         <p className="text-sm text-muted-foreground">{loginText}</p>
         <Link href={`/login?next=${encodeURIComponent(next)}`} className={buttonVariants({ size: "lg" })}>
           Log in
         </Link>
-      </PageNotice>
+      </PageNotice>,
     );
   }
 
   if (!user.email_verified) {
-    return (
+    return instead(
       <PageNotice icon={<MailWarning className="size-7" aria-hidden />} title="Verify your email first">
         <p className="text-sm text-muted-foreground">{verifyText}</p>
         <Link href={`/verify-email?next=${encodeURIComponent(next)}`} className={buttonVariants({ size: "lg" })}>
           Verify now
         </Link>
-      </PageNotice>
+      </PageNotice>,
     );
   }
 

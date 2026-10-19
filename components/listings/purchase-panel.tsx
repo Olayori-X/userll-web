@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useSession } from "@/components/providers/session-provider";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { MessageButton } from "@/components/messages/message-button";
 
 const MAX_PER_LINE = 100; // the API's limit for one cart line
 
@@ -158,6 +159,8 @@ export function PurchasePanel({ listing }: PurchasePanelProps) {
           Buy now
         </Button>
       </div>
+
+      <MessageButton about={{ listing: listing.slug }} variant="ghost" className="justify-self-center" />
 
       {!user && status === "unauthenticated" && forSale && (
         <p className="text-center text-xs text-muted-foreground">You&apos;ll be asked to log in first.</p>

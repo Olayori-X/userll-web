@@ -8,6 +8,7 @@
 import { serverGet, serverGetOrNull } from "@/lib/api-server";
 import type { Category, Listing, ListingCard, ListingCondition, SellerSummary } from "@/lib/types/catalog";
 import type { Paginated, Wrapped } from "@/lib/types/common";
+import type { ReviewPage, StarRating } from "@/lib/types/reviews";
 
 export type ListingSort = "newest" | "price_asc" | "price_desc";
 
@@ -55,4 +56,15 @@ export async function getSeller(slug: string): Promise<SellerSummary | null> {
   const result = await serverGetOrNull<Wrapped<SellerSummary>>(`/sellers/${encodeURIComponent(slug)}`, { revalidate: 60 });
 
   return result?.data ?? null;
+}
+
+/**
+ * A seller's public reviews, newest first, 20 to a page, with the summary for the whole shop. Kept for a minute.
+ * Null when there is no such public shop. Filter to one star rating with `rating`.
+ */
+export async function getSellerReviews(slug: string, { rating, page = 1 }: { rating?: StarRating; page?: number } = {}): Promise<ReviewPage | null> {
+  return serverGetOrNull<ReviewPage>(`/sellers/${encodeURIComponent(slug)}/reviews`, {
+    query: { rating, page: page > 1 ? page : undefined },
+    revalidate: 60,
+  });
 }
