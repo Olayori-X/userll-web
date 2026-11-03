@@ -106,3 +106,24 @@ export function formatClock(timestamp: string | null | undefined): string | null
 export function lagosDay(offsetDays = 0): string {
   return dayKey(new Date(Date.now() + offsetDays * 86_400_000));
 }
+
+/**
+ * How long ago a moment was, in the largest sensible unit: "just now", "5 minutes", "3 hours", "2 days".
+ * Null when there is no usable date.
+ */
+export function formatAge(timestamp: string | null | undefined): string | null {
+  const date = parse(timestamp);
+  if (!date) return null;
+
+  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60_000));
+
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+
+  const days = Math.floor(hours / 24);
+
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
