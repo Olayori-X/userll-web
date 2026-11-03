@@ -1,6 +1,7 @@
 /** A seller's public reviews, as shown on their shop page. */
 
 import type { Paginated } from "@/lib/types/common";
+import type { OwnReview } from "@/lib/types/orders";
 
 /** One visible review. Reviews an admin hid never appear here. */
 export type PublicReview = {
@@ -30,4 +31,13 @@ export type ReviewSummary = {
 /** A page of reviews (20 to a page), with the summary for the whole shop, not just this page. */
 export type ReviewPage = Paginated<PublicReview> & {
   summary: ReviewSummary;
+};
+
+/** A page of the seller's own reviews (20 to a page), with the shop's totals. Hidden reviews are included, marked `is_hidden`. */
+export type SellerReviewPage = Paginated<OwnReview> & {
+  summary: {
+    reviews_count: number;
+    /** 0 when there are no reviews yet. */
+    rating_average: number;
+  };
 };

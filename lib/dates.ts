@@ -98,3 +98,11 @@ export function formatClock(timestamp: string | null | undefined): string | null
 
   return date ? new Intl.DateTimeFormat("en-NG", { hour: "numeric", minute: "2-digit", timeZone: TIME_ZONE }).format(date) : null;
 }
+
+/**
+ * A calendar day in Lagos as "2026-10-31", counted from today: 0 is today, -6 is six days ago.
+ * What the API's ?from= and ?to= expect, and always the Lagos day, whatever the visitor's device says.
+ */
+export function lagosDay(offsetDays = 0): string {
+  return dayKey(new Date(Date.now() + offsetDays * 86_400_000));
+}
