@@ -1,13 +1,21 @@
 "use client";
 
+import { useCallback, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@/lib/api";
+import type { AdminDispute, ChatLine, DisputeResolution } from "@/lib/types/admin-disputes";
 import { useSession } from "@/components/providers/session-provider";
 import {
   approveKyc,
+  getDispute,
+  getDisputes,
   getKycSubmission,
   getKycSubmissions,
+  getOrderChat,
   getOverview,
   rejectKyc,
+  resolveDispute,
+  type DisputeFilter,
   type KycFilter,
   type OverviewPeriod,
 } from "@/lib/api/admin";
@@ -97,3 +105,119 @@ function useKycDecision<TVariables extends { id: number }>(decide: (variables: T
 export const useApproveKyc = () => useKycDecision(({ id }: { id: number }) => approveKyc(id));
 
 export const useRejectKyc = () => useKycDecision(({ id, reason }: { id: number; reason: string }) => rejectKyc(id, reason));
+
+// ---------------------------------------------------------------- disputes
+
+const DISPUTES_KEY = [...ADMIN_KEY, "disputes"] as const;
+const disputeListKey = (filter: DisputeFilter) => [...DISPUTES_KEY, "list", filter] as const;
+const disputeDetailKey = (id: number) => [...DISPUTES_KEY, "detail", id] as const;
+
+/** One page of disputes. Asked again every minute, so a new dispute appears without a reload. */
+export function useDisputes(filter: DisputeFilter = {}) {
+  return useQuery({
+    queryKey: disputeListKey(filter),
+    queryFn: () => getDisputes(filter),
+    enabled: useIsAdmin(),
+    placeholderData: keepPreviousData,
+    refetchInterval: ADMIN_POLL_MS,
+  });
+}
+
+/** One dispute. Kept fresh for only 10 seconds: another admin may have decided it since it was loaded. */
+export function useDispute(id: number) {
+  return useQuery({
+    queryKey: disputeDetailKey(id),
+    queryFn: () => getDispute(id),
+    enabled: useIsAdmin(),
+    staleTime: 10_000,
+  });
+}
+
+/**
+ * The order's chat for a dispute. A 403 (no dispute) or a 404 (the two never messaged) means "nothing to read", which is
+ * not a failure: it gives an empty chat. Reading is recorded in the audit log, so the page asks for it on its own, once,
+ * and does not ask again on its own.
+ */
+export function useOrderChat(orderNumber: string | undefined) {
+  const query = useQuery({
+    queryKey: [...DISPUTES_KEY, "chat", orderNumber],
+    queryFn: async () => {
+      try {
+        return await getOrderChat(orderNumber as string);
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 403 || error.status === 404)) return null;
+
+        throw error;
+      }
+    },
+    enabled: useIsAdmin() && Boolean(orderNumber),
+    staleTime: Infinity, // every read is on record, so it is never re-read unless the admin asks
+    retry: false,
+  });
+
+  // Earlier messages are loaded by hand and kept apart, so they are never thrown away.
+  const [older, setOlder] = useState<ChatLine[]>([]);
+  const [olderHasMore, setOlderHasMore] = useState<boolean | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [olderFailed, setOlderFailed] = useState(false);
+
+  const latest = query.data?.messages;
+  const messages = useMemo(() => (latest ? [...older, ...latest] : older), [older, latest]);
+  const hasMore = olderHasMore ?? query.data?.has_more ?? false;
+
+  const loadOlder = useCallback(async () => {
+    const oldestId = messages[0]?.id;
+
+    if (!orderNumber || oldestId === undefined || loadingOlder) return;
+
+    setLoadingOlder(true);
+    setOlderFailed(false);
+
+    try {
+      const page = await getOrderChat(orderNumber, oldestId);
+
+      setOlder((current) => [...page.messages, ...current]);
+      setOlderHasMore(page.has_more);
+    } catch {
+      setOlderFailed(true);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [orderNumber, messages, loadingOlder]);
+
+  return {
+    chat: query.data ?? null,
+    messages,
+    hasMore,
+    loadOlder,
+    loadingOlder,
+    olderFailed,
+    isPending: query.isPending,
+    isError: query.isError,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Decides a dispute. The API answers with the dispute as it now is, which goes straight into the cache; the lists, and the
+ * overview's open-disputes and payments-to-refund counts, are marked stale. The decision is final and moves money, so it is
+ * never repeated automatically. If it fails because another admin already decided, the dispute is fetched again.
+ */
+export function useResolveDispute() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, resolution, note }: { id: number; resolution: DisputeResolution; note?: string }) =>
+      resolveDispute(id, resolution, note),
+
+    onSuccess: (dispute: AdminDispute) => {
+      queryClient.setQueryData(disputeDetailKey(dispute.id), dispute);
+      void queryClient.invalidateQueries({ queryKey: [...DISPUTES_KEY, "list"] });
+      void queryClient.invalidateQueries({ queryKey: [...ADMIN_KEY, "overview"] });
+    },
+
+    onError: (_error, variables) => {
+      void queryClient.invalidateQueries({ queryKey: disputeDetailKey(variables.id) });
+    },
+  });
+}
