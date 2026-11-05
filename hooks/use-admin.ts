@@ -15,9 +15,15 @@ import {
   getOverview,
   rejectKyc,
   resolveDispute,
+  getPayments,
+  getRefunds,
+  refundPayment,
+  retryRefund,
   type DisputeFilter,
   type KycFilter,
   type OverviewPeriod,
+  type PaymentFilter,
+  type RefundFilter
 } from "@/lib/api/admin";
 import type { AdminKycSubmission } from "@/lib/types/admin-kyc";
 
@@ -221,3 +227,55 @@ export function useResolveDispute() {
     },
   });
 }
+
+// ---------------------------------------------------------------- payments and refunds
+
+const PAYMENTS_KEY = [...ADMIN_KEY, "payments"] as const;
+const REFUNDS_KEY = [...ADMIN_KEY, "refunds"] as const;
+
+/** One page of payments. Asked again every minute, so a payment that needs a refund appears without a reload. */
+export function usePayments(filter: PaymentFilter = {}) {
+  return useQuery({
+    queryKey: [...PAYMENTS_KEY, "list", filter],
+    queryFn: () => getPayments(filter),
+    enabled: useIsAdmin(),
+    placeholderData: keepPreviousData,
+    refetchInterval: ADMIN_POLL_MS,
+  });
+}
+
+/** One page of refunds. Asked again every minute, so a refund that finishes or fails shows up on its own. */
+export function useRefunds(filter: RefundFilter = {}) {
+  return useQuery({
+    queryKey: [...REFUNDS_KEY, "list", filter],
+    queryFn: () => getRefunds(filter),
+    enabled: useIsAdmin(),
+    placeholderData: keepPreviousData,
+    refetchInterval: ADMIN_POLL_MS,
+  });
+}
+
+/**
+ * Money going back to a buyer. Both lists, and the overview's counts (payments to refund, refunds needing attention), are
+ * refreshed afterwards, because refunding a payment moves it from one list to the other.
+ *
+ * Both actions move real money, so they are never repeated automatically. If one fails because someone already did it
+ * (another admin, another tab), the lists are fetched again so the screen shows what is true.
+ */
+function useMoneyBack<TVariables>(act: (variables: TVariables) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: PAYMENTS_KEY });
+    void queryClient.invalidateQueries({ queryKey: REFUNDS_KEY });
+    void queryClient.invalidateQueries({ queryKey: [...ADMIN_KEY, "overview"] });
+  };
+
+  return useMutation({ mutationFn: act, onSuccess: refresh, onError: refresh });
+}
+
+/** Sends a "needs_refund" payment back to the buyer, in full. */
+export const useRefundPayment = () => useMoneyBack((id: number) => refundPayment(id));
+
+/** Sends a failed refund again. Check the Paystack dashboard first so the buyer is not refunded twice. */
+export const useRetryRefund = () => useMoneyBack((id: number) => retryRefund(id));

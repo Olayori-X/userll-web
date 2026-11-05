@@ -12,6 +12,7 @@ import type { AdminOverview } from "@/lib/types/admin-overview";
 import type { AdminKycSubmission } from "@/lib/types/admin-kyc";
 import type { KycStatus } from "@/lib/types/seller";
 import type { AdminDispute, DisputeResolution, DisputeStatus, OrderChat } from "@/lib/types/admin-disputes";
+import type { AdminPayment, AdminRefund, PaymentStatus, RefundStatus } from "@/lib/types/admin-payments";
 
 const unwrap = <T>({ data }: Wrapped<T>) => data;
 
@@ -105,4 +106,46 @@ export function resolveDispute(id: number, resolution: DisputeResolution, note?:
   return api
     .post<Wrapped<AdminDispute>>(`/admin/disputes/${id}/resolve`, { resolution, ...(note ? { note } : {}) })
     .then(unwrap);
+}
+
+// ---------------------------------------------------------------- payments and refunds
+
+export type PaymentFilter = {
+  /** "needs_refund" by default: the payments where a buyer paid but couldn't get an order. */
+  status?: PaymentStatus;
+  page?: number;
+};
+
+/** Payments by status, newest first, 30 to a page. */
+export function getPayments({ status, page = 1 }: PaymentFilter = {}) {
+  return api.get<Paginated<AdminPayment>>("/admin/payments", { query: { status, page: page > 1 ? page : undefined } });
+}
+
+/**
+ * Sends a "needs_refund" payment back to the buyer, in full. The payment becomes "refunded", a refund is created and
+ * sent to Paystack by the queue worker, and the buyer is told why they have no order and what happens next.
+ * Only a payment marked needs_refund can be refunded: anything else gives a 422 with a `payment` error.
+ * It moves real money and is never repeated automatically.
+ */
+export function refundPayment(id: number) {
+  return api.post<Wrapped<AdminRefund>>(`/admin/payments/${id}/refund`).then(unwrap);
+}
+
+export type RefundFilter = {
+  /** Leave it out for every refund. */
+  status?: RefundStatus;
+  page?: number;
+};
+
+/** Refunds, newest first, 30 to a page. */
+export function getRefunds({ status, page = 1 }: RefundFilter = {}) {
+  return api.get<Paginated<AdminRefund>>("/admin/refunds", { query: { status, page: page > 1 ? page : undefined } });
+}
+
+/**
+ * Sends a FAILED refund again. Check the Paystack dashboard first: if the money already went back, retrying refunds the
+ * buyer twice. Only a failed refund can be retried: anything else gives a 422 with a `refund` error.
+ */
+export function retryRefund(id: number) {
+  return api.post<Wrapped<AdminRefund>>(`/admin/refunds/${id}/retry`).then(unwrap);
 }
