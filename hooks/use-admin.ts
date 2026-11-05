@@ -19,11 +19,13 @@ import {
   getRefunds,
   refundPayment,
   retryRefund,
+  getAdminPayouts,
   type DisputeFilter,
   type KycFilter,
   type OverviewPeriod,
   type PaymentFilter,
-  type RefundFilter
+  type RefundFilter,
+  type AdminPayoutFilter
 } from "@/lib/api/admin";
 import type { AdminKycSubmission } from "@/lib/types/admin-kyc";
 
@@ -279,3 +281,16 @@ export const useRefundPayment = () => useMoneyBack((id: number) => refundPayment
 
 /** Sends a failed refund again. Check the Paystack dashboard first so the buyer is not refunded twice. */
 export const useRetryRefund = () => useMoneyBack((id: number) => retryRefund(id));
+
+// ---------------------------------------------------------------- payouts (read-only)
+
+/** One page of sellers' withdrawals. Asked again every minute, so a transfer that finishes or gets stuck shows on its own. */
+export function useAdminPayouts(filter: AdminPayoutFilter = {}) {
+  return useQuery({
+    queryKey: [...ADMIN_KEY, "payouts", "list", filter],
+    queryFn: () => getAdminPayouts(filter),
+    enabled: useIsAdmin(),
+    placeholderData: keepPreviousData,
+    refetchInterval: ADMIN_POLL_MS,
+  });
+}

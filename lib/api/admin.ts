@@ -13,6 +13,8 @@ import type { AdminKycSubmission } from "@/lib/types/admin-kyc";
 import type { KycStatus } from "@/lib/types/seller";
 import type { AdminDispute, DisputeResolution, DisputeStatus, OrderChat } from "@/lib/types/admin-disputes";
 import type { AdminPayment, AdminRefund, PaymentStatus, RefundStatus } from "@/lib/types/admin-payments";
+import type { AdminPayout } from "@/lib/types/admin-payouts";
+import type { PayoutStatus } from "@/lib/types/wallet";
 
 const unwrap = <T>({ data }: Wrapped<T>) => data;
 
@@ -148,4 +150,27 @@ export function getRefunds({ status, page = 1 }: RefundFilter = {}) {
  */
 export function retryRefund(id: number) {
   return api.post<Wrapped<AdminRefund>>(`/admin/refunds/${id}/retry`).then(unwrap);
+}
+
+// ---------------------------------------------------------------- payouts (read-only)
+
+export type AdminPayoutFilter = {
+  /** Leave it out for every withdrawal. */
+  status?: PayoutStatus;
+  /** Only one seller's withdrawals: their user id. */
+  sellerId?: number;
+  /** A Paystack reference or transfer code, matched exactly. How to find the transfer a seller is asking about. */
+  reference?: string;
+  page?: number;
+};
+
+/** Sellers' withdrawals, newest first, 30 to a page. Read-only: nothing an admin does here changes one. */
+export function getAdminPayouts({ status, sellerId, reference, page = 1 }: AdminPayoutFilter = {}) {
+  return api.get<Paginated<AdminPayout>>("/admin/payouts", {
+    query: { status, seller_id: sellerId, reference, page: page > 1 ? page : undefined },
+  });
+}
+
+export function getAdminPayout(id: number) {
+  return api.get<Wrapped<AdminPayout>>(`/admin/payouts/${id}`).then(unwrap);
 }
