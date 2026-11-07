@@ -20,14 +20,20 @@ import {
   refundPayment,
   retryRefund,
   getAdminPayouts,
+  getUser,
+  getUsers,
+  reactivateUser,
+  suspendUser,
   type DisputeFilter,
   type KycFilter,
   type OverviewPeriod,
   type PaymentFilter,
   type RefundFilter,
-  type AdminPayoutFilter
+  type AdminPayoutFilter,
+  type UserFilter
 } from "@/lib/api/admin";
 import type { AdminKycSubmission } from "@/lib/types/admin-kyc";
+import type { AdminUser } from "@/lib/types/admin-users";
 
 /** Everything about the admin console lives under ["admin", ...] in the cache, so logging out wipes it all. */
 const ADMIN_KEY = ["admin"] as const;
@@ -294,3 +300,56 @@ export function useAdminPayouts(filter: AdminPayoutFilter = {}) {
     refetchInterval: ADMIN_POLL_MS,
   });
 }
+
+// ---------------------------------------------------------------- users
+
+const USERS_KEY = [...ADMIN_KEY, "users"] as const;
+const userDetailKey = (id: number) => [...USERS_KEY, "detail", id] as const;
+
+/** One page of accounts. Typing in the search box only changes the address once it is sent, so this is asked per search. */
+export function useUsers(filter: UserFilter = {}) {
+  return useQuery({
+    queryKey: [...USERS_KEY, "list", filter],
+    queryFn: () => getUsers(filter),
+    enabled: useIsAdmin(),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+}
+
+/** One account with its numbers. Kept fresh for only 10 seconds: another admin may have just suspended it. */
+export function useUser(id: number) {
+  return useQuery({
+    queryKey: userDetailKey(id),
+    queryFn: () => getUser(id),
+    enabled: useIsAdmin(),
+    staleTime: 10_000,
+  });
+}
+
+/**
+ * Suspending and restoring. The API answers with the account as it now is. It has no `stats`, so the ones already on screen
+ * are kept, and every list is marked stale. The overview's totals (suspended users, buyable listings) catch up too.
+ *
+ * Both are final until the other is used, and are never repeated automatically. If one fails because someone else already
+ * did it, the account is fetched again so the screen shows what is true.
+ */
+function useAccountChange<TVariables extends { id: number }>(change: (variables: TVariables) => Promise<AdminUser>) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: change,
+    onSuccess: (user) => {
+      queryClient.setQueryData<AdminUser>(userDetailKey(user.id), (current) => ({ ...user, stats: user.stats ?? current?.stats }));
+      void queryClient.invalidateQueries({ queryKey: [...USERS_KEY, "list"] });
+      void queryClient.invalidateQueries({ queryKey: [...ADMIN_KEY, "overview"] });
+    },
+    onError: (_error, variables) => {
+      void queryClient.invalidateQueries({ queryKey: userDetailKey(variables.id) });
+    },
+  });
+}
+
+export const useSuspendUser = () => useAccountChange(({ id, reason }: { id: number; reason: string }) => suspendUser(id, reason));
+
+export const useReactivateUser = () => useAccountChange(({ id }: { id: number }) => reactivateUser(id));

@@ -15,6 +15,7 @@ import type { AdminDispute, DisputeResolution, DisputeStatus, OrderChat } from "
 import type { AdminPayment, AdminRefund, PaymentStatus, RefundStatus } from "@/lib/types/admin-payments";
 import type { AdminPayout } from "@/lib/types/admin-payouts";
 import type { PayoutStatus } from "@/lib/types/wallet";
+import type { AdminUser, UserAccountStatus, UserType } from "@/lib/types/admin-users";
 
 const unwrap = <T>({ data }: Wrapped<T>) => data;
 
@@ -173,4 +174,43 @@ export function getAdminPayouts({ status, sellerId, reference, page = 1 }: Admin
 
 export function getAdminPayout(id: number) {
   return api.get<Wrapped<AdminPayout>>(`/admin/payouts/${id}`).then(unwrap);
+}
+
+// ---------------------------------------------------------------- users
+
+export type UserFilter = {
+  /** Part of a name or an email address, up to 100 characters. Matched as plain text. */
+  search?: string;
+  type?: UserType;
+  status?: UserAccountStatus;
+  /** Only sellers whose identity check is in this state: "pending" finds the ones waiting for review. */
+  kycStatus?: KycStatus;
+  page?: number;
+};
+
+/** Accounts, newest first, 30 to a page. Items have no `stats`: those come with a single user. */
+export function getUsers({ search, type, status, kycStatus, page = 1 }: UserFilter = {}) {
+  return api.get<Paginated<AdminUser>>("/admin/users", {
+    query: { search, type, status, kyc_status: kycStatus, page: page > 1 ? page : undefined },
+  });
+}
+
+/** One account, with the numbers an admin wants before deciding anything about it. */
+export function getUser(id: number) {
+  return api.get<Wrapped<AdminUser>>(`/admin/users/${id}`).then(unwrap);
+}
+
+/**
+ * Suspends an account: logged out of every device at once, unable to sell, their listings off the market. The reason
+ * (5 to 255 characters, error field `reason`) is for admins only, and the person is never shown it.
+ * Field errors on `user`: "You cannot suspend your own account.", "Admin accounts cannot be suspended here.",
+ * "This account is already suspended."
+ */
+export function suspendUser(id: number, reason: string) {
+  return api.post<Wrapped<AdminUser>>(`/admin/users/${id}/suspend`, { reason }).then(unwrap);
+}
+
+/** Lets a suspended account back in. Their listings do not come back by themselves: that is each seller's choice or an admin's. */
+export function reactivateUser(id: number) {
+  return api.post<Wrapped<AdminUser>>(`/admin/users/${id}/reactivate`).then(unwrap);
 }
