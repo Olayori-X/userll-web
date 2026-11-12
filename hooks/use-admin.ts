@@ -24,16 +24,22 @@ import {
   getUsers,
   reactivateUser,
   suspendUser,
+  getAdminListing,
+  getAdminListings,
+  removeListing,
+  restoreListing,
   type DisputeFilter,
   type KycFilter,
   type OverviewPeriod,
   type PaymentFilter,
   type RefundFilter,
   type AdminPayoutFilter,
-  type UserFilter
+  type UserFilter,
+  type AdminListingFilter
 } from "@/lib/api/admin";
 import type { AdminKycSubmission } from "@/lib/types/admin-kyc";
 import type { AdminUser } from "@/lib/types/admin-users";
+import type { AdminListing } from "@/lib/types/admin-listings";
 
 /** Everything about the admin console lives under ["admin", ...] in the cache, so logging out wipes it all. */
 const ADMIN_KEY = ["admin"] as const;
@@ -353,3 +359,56 @@ function useAccountChange<TVariables extends { id: number }>(change: (variables:
 export const useSuspendUser = () => useAccountChange(({ id, reason }: { id: number; reason: string }) => suspendUser(id, reason));
 
 export const useReactivateUser = () => useAccountChange(({ id }: { id: number }) => reactivateUser(id));
+
+// ---------------------------------------------------------------- listings
+
+const LISTINGS_KEY = [...ADMIN_KEY, "listings"] as const;
+const listingDetailKey = (id: number) => [...LISTINGS_KEY, "detail", id] as const;
+
+/** One page of listings. */
+export function useAdminListings(filter: AdminListingFilter = {}) {
+  return useQuery({
+    queryKey: [...LISTINGS_KEY, "list", filter],
+    queryFn: () => getAdminListings(filter),
+    enabled: useIsAdmin(),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+}
+
+/** One listing. Kept fresh for only 10 seconds: the seller or another admin may have changed it since it was loaded. */
+export function useAdminListing(id: number) {
+  return useQuery({
+    queryKey: listingDetailKey(id),
+    queryFn: () => getAdminListing(id),
+    enabled: useIsAdmin(),
+    staleTime: 10_000,
+  });
+}
+
+/**
+ * Removing and restoring. The API answers with the listing as it now is, which goes straight into the cache, and every list
+ * is marked stale. The overview's "buyable listings" total catches up too.
+ *
+ * Never repeated automatically. If one fails because someone already did it, the listing is fetched again so the screen shows
+ * what is true.
+ */
+function useListingModeration<TVariables extends { id: number }>(change: (variables: TVariables) => Promise<AdminListing>) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: change,
+    onSuccess: (listing) => {
+      queryClient.setQueryData(listingDetailKey(listing.id), listing);
+      void queryClient.invalidateQueries({ queryKey: [...LISTINGS_KEY, "list"] });
+      void queryClient.invalidateQueries({ queryKey: [...ADMIN_KEY, "overview"] });
+    },
+    onError: (_error, variables) => {
+      void queryClient.invalidateQueries({ queryKey: listingDetailKey(variables.id) });
+    },
+  });
+}
+
+export const useRemoveListing = () => useListingModeration(({ id, reason }: { id: number; reason: string }) => removeListing(id, reason));
+
+export const useRestoreListing = () => useListingModeration(({ id }: { id: number }) => restoreListing(id));

@@ -16,6 +16,8 @@ import type { AdminPayment, AdminRefund, PaymentStatus, RefundStatus } from "@/l
 import type { AdminPayout } from "@/lib/types/admin-payouts";
 import type { PayoutStatus } from "@/lib/types/wallet";
 import type { AdminUser, UserAccountStatus, UserType } from "@/lib/types/admin-users";
+import type { ListingStatus } from "@/lib/types/catalog";
+import type { AdminListing } from "@/lib/types/admin-listings";
 
 const unwrap = <T>({ data }: Wrapped<T>) => data;
 
@@ -213,4 +215,40 @@ export function suspendUser(id: number, reason: string) {
 /** Lets a suspended account back in. Their listings do not come back by themselves: that is each seller's choice or an admin's. */
 export function reactivateUser(id: number) {
   return api.post<Wrapped<AdminUser>>(`/admin/users/${id}/reactivate`).then(unwrap);
+}
+
+// ---------------------------------------------------------------- listings
+
+export type AdminListingFilter = {
+  /** Leave it out for every listing. */
+  status?: ListingStatus;
+  /** Only one seller's listings: their user id. */
+  sellerId?: number;
+  /** Part of a title, up to 100 characters. Matched as plain text. */
+  search?: string;
+  page?: number;
+};
+
+/** Every listing, newest first, 30 to a page. A listing a seller deleted themselves is not included. */
+export function getAdminListings({ status, sellerId, search, page = 1 }: AdminListingFilter = {}) {
+  return api.get<Paginated<AdminListing>>("/admin/listings", {
+    query: { status, seller_id: sellerId, search, page: page > 1 ? page : undefined },
+  });
+}
+
+export function getAdminListing(id: number) {
+  return api.get<Wrapped<AdminListing>>(`/admin/listings/${id}`).then(unwrap);
+}
+
+/**
+ * Takes a listing off the market. The reason (5 to 255 characters, error field `reason`) is SHOWN TO THE SELLER, on their
+ * product page and in their email, so it must say what to fix. Removing a removed listing gives a 422 with a `listing` error.
+ */
+export function removeListing(id: number, reason: string) {
+  return api.post<Wrapped<AdminListing>>(`/admin/listings/${id}/remove`, { reason }).then(unwrap);
+}
+
+/** Brings a removed listing back as a DRAFT. The seller is told, and has to publish it again themselves. */
+export function restoreListing(id: number) {
+  return api.post<Wrapped<AdminListing>>(`/admin/listings/${id}/restore`).then(unwrap);
 }
